@@ -1,4 +1,8 @@
 require('dotenv').config();
+const fs = require('fs');
+
+// hlic-z3ut-apcy-mi6b
+// CornflowerBlue
 
 // OAuth Settings
 const OAUTH_APP_NAME = 'Bluesky OAuth Example App';
@@ -15,7 +19,7 @@ const { query, validationResult } = require('express-validator');
 
 const { NodeOAuthClient, Session } = require('@atproto/oauth-client-node');
 const { JoseKey } = require('@atproto/jwk-jose');
-const { Agent } = require('@atproto/api');
+const { Agent, AtpAgent } = require('@atproto/api');
 
 // Required Env Variables
 const requiredEnvVars = ['JWT_SECRET', 'BASE_URL', 'PRIVATE_KEY_1', 'PRIVATE_KEY_2', 'PRIVATE_KEY_3'];
@@ -200,7 +204,8 @@ app.get(['/oauth/callback'], async (req, res, next) => {
         // Process successful authentication here
         if (debug) console.log('authorize() was called with state:', state);
         if (debug) console.log('User authenticated as:', session.did);
-        if (debug) console.log('[Session]:', session, session.service);
+        console.log('[Session]:', session);
+        fs.writeFileSync('tokens.json', JSON.stringify(session, null, 2));
 
         const agent = new Agent(session);
 
@@ -293,6 +298,41 @@ app.get('/post', verifyToken, async (req, res) => {
         res.status(403).send('Unauthorized'); // Simplified error handling for this example
     }
 });
+
+// Endpoint to demonstrate a write request with app password
+app.get('/post/withAppPassword', async (req, res) => {
+    try {
+
+        const agent = new AtpAgent({
+            service: 'https://bsky.social',
+        })
+
+        const hey = await agent.login({
+            identifier: 'jawhersh.bsky.social',
+            password: 'hlic-z3ut-apcy-mi6b', // password generated in https://bsky.app/settings/app-passwords
+        })
+        console.log(hey)
+
+        const response = await agent.post({
+            //$type: "app.bsky.feed.post",         // The AT Protocal type
+            text: 'post from api',
+            //createdAt: new Date().toISOString()  // Required format
+        });
+
+        res.json(response);
+    } catch(e) {
+        console.log(e);
+        res.status(403).send('Unauthorized'); // Simplified error handling for this example
+    }
+});
+
+// we get an accessJwt token and a refreshJwt token
+// the session can be refreshed through /xrpc/com.atproto.server.refreshSession
+// we can use the agent or the endpoints in the http reference
+// to get user feed /xrpc/app.bsky.feed.getAuthorFeed
+// to post /xrpc/com.atproto.repo.createRecord (with collection property set to app.bsky.feed.post)
+// to like /xrpc/com.atproto.repo.createRecord (with collection property set to app.bsky.feed.like)
+// ....
 
 // Revoke an access_token to demonstrate token refresh
 app.get('/revoke', verifyToken, async (req, res) => {
